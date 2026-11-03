@@ -8,6 +8,7 @@
 #include "fileTransfer.h"
 #include "log.h"
 #include "mtFileManagerOldVersionRecovery.h"
+#include "util_string.h"
 
 #include <algorithm>
 #include <cstring>
@@ -881,14 +882,9 @@ void cFileManager::checkLoopParameters(struct strInstrument* instr)
 
 void cFileManager::removeWavExtensionFromName(char* fileName)
 {
-    uint32_t fileNameLen = strlen(fileName);
-
-    if (((fileName[fileNameLen - 1] == 'V') || (fileName[fileNameLen - 1] == 'v')) &&
-        ((fileName[fileNameLen - 2] == 'A') || (fileName[fileNameLen - 2] == 'a')) &&
-        ((fileName[fileNameLen - 3] == 'W') || (fileName[fileNameLen - 3] == 'w')) &&
-        (fileName[fileNameLen - 4] == '.'))
+    if (hasFileExtension(fileName, "wav"))
     {
-        fileName[fileNameLen - 4] = 0;
+        fileName[strlen(fileName) - 4] = 0;
     }
 }
 
@@ -897,13 +893,9 @@ void cFileManager::copySampleNameWithoutExtension(char* sampleName, char* fileNa
     strncpy(sampleName, fileName, maxLength);
     sampleName[maxLength] = 0;
 
-    int fileNameLen = strlen(fileName);
-
-    if (((fileName[fileNameLen - 1] == 'V') || (fileName[fileNameLen - 1] == 'v')) &&
-        ((fileName[fileNameLen - 2] == 'A') || (fileName[fileNameLen - 2] == 'a')) &&
-        ((fileName[fileNameLen - 3] == 'W') || (fileName[fileNameLen - 3] == 'w')) &&
-        (fileName[fileNameLen - 4] == '.'))
+    if (hasFileExtension(fileName, "wav"))
     {
+        int fileNameLen = strlen(fileName);
         if ((fileNameLen - 4) <= maxLength)
         {
             sampleName[fileNameLen - 4] = 0;
@@ -913,13 +905,5 @@ void cFileManager::copySampleNameWithoutExtension(char* sampleName, char* fileNa
 
 bool cFileManager::isFilePtiInstrument(char* file)
 {
-    uint32_t fileLen = strlen(file);
-
-    if (((file[fileLen - 1] == 'i') || (file[fileLen - 1] == 'I')) &&
-        ((file[fileLen - 2] == 't') || (file[fileLen - 2] == 'T')) &&
-        ((file[fileLen - 3] == 'p') || (file[fileLen - 3] == 'P')) && (file[fileLen - 4] == '.'))
-    {
-        return true;
-    }
-    return false;
+    return hasFileExtension(file, "pti");
 }

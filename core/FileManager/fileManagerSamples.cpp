@@ -498,9 +498,13 @@ uint32_t cFileManager::getWaveSizeIfValid(const char* filename)
 
 uint32_t cFileManager::getWaveSizeAfterConversion(const char* filename, bool countStereo)
 {
-    strWavFileHeader sampleHeader;
+    strWavFileHeader sampleHeader = {};
 
     uint32_t wavDataSize = getWaveSizeAndHederIfValid(filename, sampleHeader);
+    if (wavDataSize == 0)
+    {
+        return 0;
+    }
 
     uint16_t allChannelBytesPerOneSample =
       (sampleHeader.bitsPerSample / 8) * sampleHeader.numChannels;
@@ -551,8 +555,12 @@ uint32_t cFileManager::getInstrumentSampleSizeIfValid(const char* filename)
     if (instrHeader.size == 0)
         return 0;
 
-    uint32_t instrumentConfigPartSize =
+    uint64_t instrumentConfigPartSize =
       instrHeader.size + (sizeof(strInstrumentFile) - sizeof(strInstrument));
+    if (instrumentConfigPartSize > fileSize)
+    {
+        return 0;
+    }
 
     return fileSize - instrumentConfigPartSize;
 }

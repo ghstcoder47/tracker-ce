@@ -6,6 +6,9 @@
 // that is less than the character being compared
 bool compareStrings(const char* a, const char* b);
 
+// extension should not include the leading dot
+bool hasFileExtension(const char* filename, const char* extension);
+
 // copies string like standard strncpy and insert 0 at the last character to avoid memory leaks
 // destSize is size of destination buffer (not string length as in standard strncpy)
 void polystrncpy(char* dest, const char* src, int destSize);
