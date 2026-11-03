@@ -6,6 +6,7 @@
 #include "VoiceStreamManager.h"
 #include "fileManager.h"
 #include "fileTransfer.h"
+#include "instrumentFileValidation.h"
 
 #include "elapsedMillis.h"
 #include "log.h"
@@ -538,21 +539,25 @@ uint32_t cFileManager::getInstrumentSampleSizeIfValid(const char* filename)
         return 0;
     }
 
-    strProjectFileHeader instrHeader;
-    memset(&instrHeader, 0, sizeof(instrHeader));
-
     uint32_t fileSize = fileSystem->getFileSize(wavfile);
-    fileSystem->readFile(&instrHeader, sizeof(instrHeader), wavfile);
+    strInstrumentFile instrumentFile;
+    memset(&instrumentFile, 0, sizeof(instrumentFile));
+    int32_t bytesRead = fileSystem->readFile(&instrumentFile, sizeof(instrumentFile), wavfile);
     fileSystem->closeFile(wavfile, false);
 
-    if (instrHeader.id_file[0] != 'T' || instrHeader.id_file[1] != 'I')
+    if (bytesRead < 0)
         return 0;
 
-    if (instrHeader.size == 0)
+    InstrumentFileValidation::Result validation;
+    if (!InstrumentFileValidation::validate((const uint8_t*)&instrumentFile,
+                                            bytesRead,
+                                            fileSize,
+                                            sizeof(strInstrument),
+                                            INSTRUMENT_FILE_VERSION,
+                                            validation))
+    {
         return 0;
+    }
 
-    uint32_t instrumentConfigPartSize =
-      instrHeader.size + (sizeof(strInstrumentFile) - sizeof(strInstrument));
-
-    return fileSize - instrumentConfigPartSize;
+    return fileSize - validation.dataOffset;
 }

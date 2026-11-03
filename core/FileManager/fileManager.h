@@ -366,6 +366,7 @@ class cFileManager
 
     bool loadInstrumentFormFileStruct(strInstrument* instrument,
                                       strInstrumentFile* instrumentFile,
+                                      uint32_t instrumentFileSize,
                                       uint32_t& instrumentFileDataOffsetOut);
 
     void completeLoadedInstrumentStruct(int idx, bool success, uint32_t samplesCount = 0);

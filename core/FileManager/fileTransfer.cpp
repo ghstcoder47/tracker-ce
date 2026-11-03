@@ -4,6 +4,7 @@
 #include "mtSequencer.h"
 
 #include "fileTransfer.h"
+#include "instrumentFileValidation.h"
 #include <string.h>
 
 extern uint8_t externalRamFileManagerSrcBuff[READ_WRITE_BUFOR_SIZE];
@@ -427,23 +428,35 @@ uint8_t cFileTransfer::copyFile(const char* src, const char* dest)
     if (transferStep == 2)
     {
         uint32_t fileNameLen = strlen(src);
+        bool invalidInstrument = false;
 
-        if (((src[fileNameLen - 1] == 'i') || (src[fileNameLen - 1] == 'I')) &&
+        if (fileNameLen >= 4 &&
+            ((src[fileNameLen - 1] == 'i') || (src[fileNameLen - 1] == 'I')) &&
             ((src[fileNameLen - 2] == 't') || (src[fileNameLen - 2] == 'T')) &&
             ((src[fileNameLen - 3] == 'p') || (src[fileNameLen - 3] == 'P')) &&
             (src[fileNameLen - 4] == '.'))
         {
             fileSystem->seekFile(0, transferFile);
-            strProjectFileHeader instrHeader;
-            memset(&instrHeader, 0, sizeof(instrHeader));
+            strInstrumentFile instrumentFile;
+            memset(&instrumentFile, 0, sizeof(instrumentFile));
 
-            fileSystem->readFile(&instrHeader, sizeof(instrHeader), transferFile);
+            int32_t bytesRead =
+              fileSystem->readFile(&instrumentFile, sizeof(instrumentFile), transferFile);
+            InstrumentFileValidation::Result validation;
 
-            if (instrHeader.id_file[0] == 'T' && instrHeader.id_file[1] == 'I' &&
-                instrHeader.size > 0)
+            if (bytesRead >= 0 &&
+                InstrumentFileValidation::validate((const uint8_t*)&instrumentFile,
+                                                   bytesRead,
+                                                   sourceMemComplited,
+                                                   sizeof(strInstrument),
+                                                   INSTRUMENT_FILE_VERSION,
+                                                   validation))
             {
-                convertedDataSize = sourceMemComplited - instrHeader.size +
-                                    (sizeof(strInstrumentFile) - sizeof(strInstrument));
+                convertedDataSize = sourceMemComplited - validation.dataOffset;
+            }
+            else
+            {
+                invalidInstrument = true;
             }
         }
 
@@ -451,6 +464,11 @@ uint8_t cFileTransfer::copyFile(const char* src, const char* dest)
 
         fileSystem->closeFile(transferFile, false);
         fileSystem->closeFile(transferFile2, false);
+        if (invalidInstrument)
+        {
+            fileSystem->remove(dest);
+            return fileTransferFileNoValid;
+        }
         return fileTransferEnd;
     }
 
@@ -480,28 +498,25 @@ uint8_t cFileTransfer::copyInstrumentHeader(const char* src, const char* dest)
 
     int32_t readResult =
       fileSystem->readFile(externalRamFileManagerBuffL, sizeof(strInstrumentFile), transferFile);
+    uint32_t sourceFileSize = fileSystem->getFileSize(transferFile);
     fileSystem->closeFile(transferFile, false);
 
-    if (readResult <= 0)
+    if (readResult < 0)
     {
         return fileTransferError;
     }
 
-    uint32_t headerSize = readResult;
-    if (readResult >= (int32_t)sizeof(strProjectFileHeader))
+    InstrumentFileValidation::Result validation;
+    if (!InstrumentFileValidation::validate(externalRamFileManagerBuffL,
+                                            readResult,
+                                            sourceFileSize,
+                                            sizeof(strInstrument),
+                                            INSTRUMENT_FILE_VERSION,
+                                            validation))
     {
-        strProjectFileHeader* instrHeader = (strProjectFileHeader*)externalRamFileManagerBuffL;
-        if (instrHeader->id_file[0] == 'T' && instrHeader->id_file[1] == 'I' &&
-            instrHeader->size > 0)
-        {
-            uint32_t calcHeaderSize =
-              instrHeader->size + (sizeof(strInstrumentFile) - sizeof(strInstrument));
-            if (calcHeaderSize <= (uint32_t)readResult)
-            {
-                headerSize = calcHeaderSize;
-            }
-        }
+        return fileTransferFileNoValid;
     }
+    uint32_t headerSize = validation.dataOffset;
 
     auto [isDestOpen, destFileHandle] =
       fileSystem->openFile(dest, FileSystem::FileOpenMode::kWriteCreateNew, &transferFile2);

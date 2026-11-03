@@ -1,9 +1,11 @@
 #include "SdStream.h"
 #include "fileManagerDefs.h"
+#include "instrumentFileValidation.h"
 #include "interruptsControl.h"
 #include "log.h"
 #include "string.h"
 #include "wavHeaderReader.h"
+#include <algorithm>
 #include <cstring>
 #include <limits>
 
@@ -190,17 +192,21 @@ bool SdStream::handleFileDecapsulation(const char* path,
         strInstrumentFile instrFile;
         memset(&instrFile, 0, sizeof(instrFile));
 
-        fileSystem->readFile(&instrFile, sizeof(instrFile), wavfile);
+        int32_t bytesRead = fileSystem->readFile(&instrFile, sizeof(instrFile), wavfile);
 
-        strProjectFileHeader& instrumentHeader = instrFile.instrumentDataAndHeader.instrHeader;
+        InstrumentFileValidation::Result validation;
 
-        if (instrumentHeader.id_file[0] == 'T' && instrumentHeader.id_file[1] == 'I' &&
-            instrumentHeader.size > 0)
+        if (bytesRead >= 0 &&
+            InstrumentFileValidation::validate((const uint8_t*)&instrFile,
+                                               bytesRead,
+                                               fileSize,
+                                               sizeof(strInstrument),
+                                               INSTRUMENT_FILE_VERSION,
+                                               validation))
         {
             strInstrument& instrumentData = instrFile.instrumentDataAndHeader.instrument;
 
-            uint32_t instrumentSampleDataOffset =
-              instrumentHeader.size + (sizeof(strInstrumentFile) - sizeof(strInstrument));
+            uint32_t instrumentSampleDataOffset = validation.dataOffset;
 
             *currentPosition = instrumentSampleDataOffset;
 

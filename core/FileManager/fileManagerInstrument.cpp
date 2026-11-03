@@ -6,6 +6,7 @@
 #include "fileManager.h"
 #include "fileManagerDefs.h"
 #include "fileTransfer.h"
+#include "instrumentFileValidation.h"
 #include "log.h"
 #include "mtFileManagerOldVersionRecovery.h"
 
@@ -656,35 +657,42 @@ uint8_t cFileManager::saveInstrument(uint8_t idx)
 
 bool cFileManager::loadInstrumentFormFileStruct(strInstrument* instrument,
                                                 strInstrumentFile* instrumentFile,
+                                                uint32_t instrumentFileSize,
                                                 uint32_t& instrumentFileDataOffsetOut)
 {
     instrumentFileDataOffsetOut = 0;
 
-    if (((strInstrumentFile*)instrumentFile)->instrumentDataAndHeader.instrHeader.type !=
-        fileTypeInstrument)
+    InstrumentFileValidation::Result validation;
+    const uint32_t loadedSize =
+      std::min(instrumentFileSize, (uint32_t)sizeof(strInstrumentFile));
+    if (!InstrumentFileValidation::validate((const uint8_t*)instrumentFile,
+                                            loadedSize,
+                                            instrumentFileSize,
+                                            sizeof(strInstrument),
+                                            INSTRUMENT_FILE_VERSION,
+                                            validation))
     {
         return false;
     }
 
-    if (instrumentFile->instrumentDataAndHeader.instrHeader.fileStructureVersion[0] <
-        INSTRUMENT_FILE_VERSION)
+    if (validation.instrumentSize < sizeof(strInstrument))
+    {
+        memset((uint8_t*)&instrumentFile->instrumentDataAndHeader.instrument +
+                 validation.instrumentSize,
+               0,
+               sizeof(strInstrument) - validation.instrumentSize);
+    }
+
+    const uint8_t fileVersion =
+      instrumentFile->instrumentDataAndHeader.instrHeader.fileStructureVersion[0];
+    if (fileVersion < INSTRUMENT_FILE_VERSION)
     {
         //"older version of instrument file opened"
 
-        versionRecovery.translateinstrument(
-          instrumentFile->instrumentDataAndHeader.instrHeader.fileStructureVersion[0],
-          INSTRUMENT_FILE_VERSION,
-          instrumentFile);
-    }
-    else if (instrumentFile->instrumentDataAndHeader.instrHeader.fileStructureVersion[0] >
-             PROJECT_FILE_VERSION)
-    {
-        //"newer version of instrument file opened"
-        // todo: informacja do interfejsu zeby wyswietlic popup
+        versionRecovery.translateinstrument(fileVersion, INSTRUMENT_FILE_VERSION, instrumentFile);
     }
 
-    instrumentFileDataOffsetOut = instrumentFile->instrumentDataAndHeader.instrHeader.size +
-                                  (sizeof(strInstrumentFile) - sizeof(strInstrument));
+    instrumentFileDataOffsetOut = validation.dataOffset;
 
     memcpy(instrument, &instrumentFile->instrumentDataAndHeader.instrument, sizeof(strInstrument));
 
