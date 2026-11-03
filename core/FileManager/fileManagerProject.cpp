@@ -65,6 +65,8 @@ bool cFileManager::loadProjectFileFormFileStruct(strMtProject* project, strProje
     memcpy(&storedCRC, (uint8_t*)pFile + projectDataSize, sizeof(storedCRC));
     uint32_t checkCRC =
       crcCalculator->calculate32bitCrc((uint8_t*)pFile, projectDataSize);
+    // Older IMX firmware wrote zero because its CRC calculator was a stub.
+    const bool hasStoredCRC = storedCRC != 0;
 
 #ifdef FILEMANAGER_DEBUGLOG
     char line[60];
@@ -76,11 +78,11 @@ bool cFileManager::loadProjectFileFormFileStruct(strMtProject* project, strProje
             pFile->projectDataAndHeader.projectHeader.fwVersion[2],
             b_ver > 0 && b_ver < 255 ? "beta " : "",
             b_ver,
-            checkCRC == storedCRC ? "ok" : "err");
+            !hasStoredCRC ? "n/a" : checkCRC == storedCRC ? "ok" : "err");
     debugLog.addLine(line);
 #endif
 
-    if (checkCRC != storedCRC)
+    if (hasStoredCRC && checkCRC != storedCRC)
     {
         return false;
     }

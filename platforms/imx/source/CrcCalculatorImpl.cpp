@@ -3,13 +3,16 @@
 
 uint32_t CrcCalculatorImpl::calculate32bitCrc(const uint8_t* data, const uint16_t datalen)
 {
-    (void)data;
-    (void)datalen;
+    uint32_t crc = 0xFFFFFFFFU;
 
-    // imxrt1051 doesn't have full-configurable hardware crc generator, it generates only specific
-    // crc variant and there isn't any possibility to generate crc like in MK66. We decided to
-    // add fake implementation, and avoid checking crc in Tracker project. Maybe we'll get rid of
-    // crc from both of projects in next step.
+    for (uint16_t byte = 0; byte < datalen; byte++)
+    {
+        crc ^= data[byte];
+        for (uint8_t bit = 0; bit < 8; bit++)
+        {
+            crc = (crc >> 1) ^ (0xEDB88320U & -(crc & 1U));
+        }
+    }
 
-    return 0;
+    return ~crc;
 }
