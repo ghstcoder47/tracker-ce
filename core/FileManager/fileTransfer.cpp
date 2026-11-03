@@ -4,6 +4,7 @@
 #include "mtSequencer.h"
 
 #include "fileTransfer.h"
+#include "fileTransferCopy.h"
 #include <string.h>
 
 extern uint8_t externalRamFileManagerSrcBuff[READ_WRITE_BUFOR_SIZE];
@@ -296,71 +297,13 @@ bool cFileTransfer::copyFile(FileSystem* fileSystem,
                              const char* srcFilepath,
                              const char* dstFilepath)
 {
-    if (!fileSystem->exists(srcFilepath))
-    {
-        return false;
-    }
-
-    if (fileSystem->exists(dstFilepath))
-    {
-        fileSystem->remove(dstFilepath);
-    }
-
-    bool result = false;
-    uint32_t memCopyStep;
-    uint32_t sourceMemComplited;
-    uint32_t sourceMemTotal;
-
-    auto [isSrcOpen, srcFileHandle] =
-      fileSystem->openFile(srcFilepath, FileSystem::FileOpenMode::kRead, &transferFile);
-
-    if (isSrcOpen)
-    {
-        auto [isDestOpen, destFileHandle] = fileSystem->openFile(
-          dstFilepath, FileSystem::FileOpenMode::kWriteCreateNew, &transferFile2);
-
-        if (isDestOpen)
-        {
-            sourceMemTotal = fileSystem->getFileSize(transferFile);
-            memCopyStep = READ_WRITE_BUFOR_SIZE;
-            sourceMemComplited = 0;
-
-            while (sourceMemComplited < sourceMemTotal)
-            {
-                int32_t read_result =
-                  fileSystem->readFile(externalRamFileManagerBuffL, memCopyStep, transferFile);
-
-                if (read_result > 0)
-                {
-                    int32_t write_result = fileSystem->writeFile(
-                      externalRamFileManagerBuffL, read_result, transferFile2);
-
-                    if (write_result >= 0)
-                    {
-                        sourceMemComplited += write_result;
-
-                        if (sourceMemComplited >= sourceMemTotal) // eof
-                        {
-                            result = true;
-                            break;
-                        }
-                        else if (read_result == write_result)
-                        {
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    fileSystem->closeFile(transferFile, false);
-    fileSystem->closeFile(transferFile2, false);
-    return result;
+    return FileTransferInternal::copyFile(fileSystem,
+                                          srcFilepath,
+                                          dstFilepath,
+                                          externalRamFileManagerBuffL,
+                                          READ_WRITE_BUFOR_SIZE,
+                                          &transferFile,
+                                          &transferFile2);
 }
 
 uint8_t cFileTransfer::copyFile(const char* src, const char* dest)
