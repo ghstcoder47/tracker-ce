@@ -380,9 +380,7 @@ void SampleImport::loadImportingSamplesData(FileManagerOperation::SampleLoadData
               fileSystem->openFile(srcSamplePath, FileSystem::FileOpenMode::kRead);
             if (isOpen)
             {
-                readHeader(&sampleHead, fileHandle);
-
-                if (checkSampleValid(sampleHead))
+                if (readHeader(&sampleHead, fileHandle) && checkSampleValid(sampleHead))
                 {
                     if (mtProject.instrument[instrIdx].isActive == 0)
                     {
@@ -436,6 +434,8 @@ void SampleImport::loadImportingSamplesData(FileManagerOperation::SampleLoadData
 
                     continue;
                 }
+
+                fileSystem->closeFile(fileHandle);
             }
         }
 

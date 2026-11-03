@@ -159,17 +159,28 @@ bool SdStream::handleFileDecapsulation(const char* path,
         ((path[pathLength - 3] == 'W') || (path[pathLength - 3] == 'w')) &&
         (path[pathLength - 4] == '.'))
     {
-        readHeader(header, wavfile);
+        if (!readHeader(header, wavfile))
+        {
+            return false;
+        }
 
         if (header->chunkId == 0x46464952 && header->waveId == WAVEID &&
             header->subchunk1Id == 0x20746D66)
         {
             uint32_t bytesPerSample = (header->bitsPerSample / 8) * header->numChannels;
+            if (bytesPerSample == 0)
+            {
+                return false;
+            }
+
             uint32_t totalSamplesCount = header->subchunk2Size / bytesPerSample;
             float from_pos = (float)from / std::numeric_limits<uint16_t>::max();
 
             *currentPosition = ((uint32_t)(totalSamplesCount * from_pos)) * bytesPerSample;
-            fileSystem->seekFileCur(*currentPosition, wavfile);
+            if (!fileSystem->seekFileCur(*currentPosition, wavfile))
+            {
+                return false;
+            }
 
             float to_pos = (float)to / std::numeric_limits<uint16_t>::max();
             *endPosition = ((uint32_t)(totalSamplesCount * to_pos)) * bytesPerSample;

@@ -200,7 +200,11 @@ bool cFileManager::startNewInstrumentSampleLoad(int idx,
         if (isOpen)
         {
             strWavFileHeader sampleHead;
-            readHeader(&sampleHead, fileHandle);
+            if (!readHeader(&sampleHead, fileHandle) || !checkSampleValid(sampleHead))
+            {
+                fileSystem->closeFile(fileHandle);
+                return false;
+            }
 
             uint32_t sourceMemTotal = fileSystem->getFileAvailable(
               fileHandle); // pobiera wielkosc dopiero po przesciu przez header

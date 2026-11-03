@@ -289,10 +289,10 @@ void cFileManager::listOnlyWavFromActualPath()
             if (isOpen)
             {
                 strWavFileHeader localHeader;
-                readHeader(&localHeader, fileHandle);
+                bool headerRead = readHeader(&localHeader, fileHandle);
                 fileSystem->closeFile(fileHandle);
 
-                if (checkSampleValid(localHeader))
+                if (headerRead && checkSampleValid(localHeader))
                 {
                     openCurrentPos++;
                     if (openCurrentPos >= explorerListLength)

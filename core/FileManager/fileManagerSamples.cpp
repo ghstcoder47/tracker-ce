@@ -447,6 +447,7 @@ uint32_t cFileManager::getSampleMemorySize(int fromSlot, int toSlot)
 
 uint32_t cFileManager::getWaveSizeAndHederIfValid(const char* fileName, strWavFileHeader& header)
 {
+    header = {};
 
     uint8_t nameLen = strlen(fileName);
     if (nameLen < 5)
@@ -474,7 +475,11 @@ uint32_t cFileManager::getWaveSizeAndHederIfValid(const char* fileName, strWavFi
         return 0;
     }
 
-    readHeader(&header, fileHandle);
+    if (!readHeader(&header, fileHandle))
+    {
+        fileSystem->closeFile(fileHandle);
+        return 0;
+    }
 
     uint32_t fileWaveDataSize = fileSystem->getFileAvailable(fileHandle);
 
@@ -501,9 +506,17 @@ uint32_t cFileManager::getWaveSizeAfterConversion(const char* filename, bool cou
     strWavFileHeader sampleHeader;
 
     uint32_t wavDataSize = getWaveSizeAndHederIfValid(filename, sampleHeader);
+    if (wavDataSize == 0 || sampleHeader.sampleRate == 0)
+    {
+        return 0;
+    }
 
     uint16_t allChannelBytesPerOneSample =
       (sampleHeader.bitsPerSample / 8) * sampleHeader.numChannels;
+    if (allChannelBytesPerOneSample == 0)
+    {
+        return 0;
+    }
 
     uint32_t wavDataSizeBytes =
       (wavDataSize <= sampleHeader.subchunk2Size) ? wavDataSize : sampleHeader.subchunk2Size;

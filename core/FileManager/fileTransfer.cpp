@@ -201,9 +201,7 @@ uint8_t cFileTransfer::loadSampleToMemory(const char* file,
             sourceMemComplited = 0;
             convertedDataSize = 0;
 
-            readHeader(&sampleHead, transferFile);
-
-            if (!checkSampleValid(sampleHead))
+            if (!readHeader(&sampleHead, transferFile) || !checkSampleValid(sampleHead))
             {
                 fileSystem->closeFile(transferFile, false);
                 transferStep = 0;
@@ -543,20 +541,19 @@ uint8_t cFileTransfer::copySample(const char* src,
 
         if (isOpen)
         {
-            readHeader(&sampleHead, transferFile);
+            if (!readHeader(&sampleHead, transferFile) || !checkSampleValid(sampleHead))
+            {
+                fileSystem->closeFile(transferFile, false);
+                transferStep = 0;
+                return fileTransferFileNoValid;
+            }
+
             if (sampleRate != defaultSampleRate)
             {
                 // trigger resampling in convertAudioData to target sampleRate
                 // by faking source rate in inverse proportions
                 sampleHead.sampleRate = (uint64_t)sampleHead.sampleRate * 44100 / sampleRate;
                 sampleHead.byteRate = (uint64_t)sampleHead.byteRate * 44100 / sampleRate;
-            }
-
-            if (!checkSampleValid(sampleHead))
-            {
-                fileSystem->closeFile(transferFile, false);
-                transferStep = 0;
-                return fileTransferFileNoValid;
             }
 
             auto [isDestOpen, fileDestHandle] =
@@ -1052,20 +1049,19 @@ uint8_t cFileTransfer::copySampleToInstrumentFile(const char* src,
           fileSystem->openFile(src, FileSystem::FileOpenMode::kRead, &transferFile);
         if (isOpen)
         {
-            readHeader(&sampleHead, transferFile);
+            if (!readHeader(&sampleHead, transferFile) || !checkSampleValid(sampleHead))
+            {
+                fileSystem->closeFile(transferFile, false);
+                transferStep = 0;
+                return fileTransferFileNoValid;
+            }
+
             if (sampleRate != defaultSampleRate)
             {
                 // trigger resampling in convertAudioData to target sampleRate
                 // by faking source rate in inverse proportions
                 sampleHead.sampleRate = (uint64_t)sampleHead.sampleRate * 44100 / sampleRate;
                 sampleHead.byteRate = (uint64_t)sampleHead.byteRate * 44100 / sampleRate;
-            }
-
-            if (!checkSampleValid(sampleHead))
-            {
-                fileSystem->closeFile(transferFile, false);
-                transferStep = 0;
-                return fileTransferFileNoValid;
             }
 
             auto [isDestOpen, fileDestHandle] =

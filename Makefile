@@ -23,7 +23,7 @@ MINI_POSTFIX     := $(EDITION_NAME)_$(MINI_VER_MAJOR).$(MINI_VER_MINOR).$(MINI_V
 
 .DEFAULT_GOAL := all
 
-.PHONY: all original plus mini ptfx clean version bump-patch bump-minor
+.PHONY: all original plus mini ptfx test-wav-header-reader clean version bump-patch bump-minor
 
 all: original plus mini
 
@@ -97,6 +97,16 @@ ptfx:
 		base=$$(basename "$$src" .c); \
 		python3 "$(ROOT_DIR)/editor-fx-sdk/ptfx_builder.py" "$$src" -o "$(ROOT_DIR)/editor-fx-sdk/build/Effects/$$base.ptfx" --toolchain "$(TOOLCHAIN)"; \
 	done
+
+test-wav-header-reader:
+	@mkdir -p "$(OUT_DIR)/tests"
+	$(CXX) -std=c++17 -Wall -Wextra -Werror \
+		-DWAV_HEADER_READER_HOST_TEST \
+		-I"$(CORE_DIR)/include" -I"$(CORE_DIR)/source" \
+		"$(ROOT_DIR)/tests/wavHeaderReaderTests.cpp" \
+		"$(CORE_DIR)/source/wavHeaderReader.cpp" \
+		-o "$(OUT_DIR)/tests/wavHeaderReaderTests"
+	"$(OUT_DIR)/tests/wavHeaderReaderTests"
 
 clean:
 	$(MAKE) -C "$(CORE_DIR)" clean PLATFORM=MK66 PRODUCT=ORIGINAL
