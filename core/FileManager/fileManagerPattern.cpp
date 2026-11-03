@@ -5,6 +5,7 @@
 #include "fileManager.h"
 #include "fileManagerDefs.h"
 #include "fileTransfer.h"
+#include "patternFileValidation.h"
 
 #include "polyassert.h"
 
@@ -15,6 +16,12 @@
 
 __NOINIT(EXTERNAL_RAM) Sequencer::strPattern fileManagerPatternBuffer;
 __NOINIT(EXTERNAL_RAM) Sequencer::strPattern fileManagerPerformancePatternBuffer;
+
+static_assert(PatternFileValidation::k12TracksPatternSizeV5 == k12TracksPatternSize_v5);
+static_assert(PatternFileValidation::k16TracksPatternSizeV5 == k16TracksPatternSize_v5);
+static_assert(PatternFileValidation::k12TracksPatternSize == k12TracksPatternSize);
+static_assert(PatternFileValidation::k16TracksPatternSize == k16TracksPatternSize);
+static_assert(PatternFileValidation::k16TracksPatternSize == sizeof(Sequencer::strPattern));
 
 void cFileManager::updateLoadWorkspacePattern()
 {
@@ -61,7 +68,9 @@ void cFileManager::loadPatternFromWorkspace(uint8_t index)
 
     if (loadStatus == fileTransferEnd)
     {
-        if (sequencer.copyBufferToBufferPattern((uint8_t*)&fileManagerPatternBuffer))
+        size_t fileSize = fileSystem->getFileSize(patternFilename);
+        if (validatePatternFileData(patternFilename, &fileManagerPatternBuffer, fileSize) &&
+            sequencer.copyBufferToBufferPattern((uint8_t*)&fileManagerPatternBuffer))
         {
             report(" no blocking pattern load - success ", loadedPattern);
             moveToNextOperationStep();
@@ -95,6 +104,12 @@ const Sequencer::strPattern* cFileManager::loadWorkspacePatternToTempBuffer(uint
 
     if (loadStatus == fileTransferEnd)
     {
+        size_t fileSize = fileSystem->getFileSize(patternToLoad);
+        if (!validatePatternFileData(patternToLoad, &fileManagerPatternBuffer, fileSize))
+        {
+            return nullptr;
+        }
+
         checkVersionAndTranslate(&fileManagerPatternBuffer);
         return &fileManagerPatternBuffer;
     }
@@ -284,6 +299,32 @@ bool cFileManager::writePatternFile(const char* filePath, Sequencer::strPattern*
     return false;
 }
 
+bool cFileManager::validatePatternFileData(const char* filePath,
+                                           const Sequencer::strPattern* pattern,
+                                           size_t fileSize)
+{
+    PatternFileValidation::Layout layout;
+    uint8_t version = pattern->header.fileStructureVersion[0];
+
+    if (!PatternFileValidation::resolveLayout(version, pattern->header.size, fileSize, layout))
+    {
+        report("load pattern file - invalid size ", filePath);
+        return false;
+    }
+
+    uint32_t calculatedCrc =
+      crcCalculator->calculate32bitCrc((const uint8_t*)pattern,
+                                       static_cast<uint16_t>(layout.crcDataSize));
+
+    if (!PatternFileValidation::isCrcValid((const uint8_t*)pattern, layout, calculatedCrc))
+    {
+        report("load pattern file - CRC error ", filePath);
+        return false;
+    }
+
+    return true;
+}
+
 bool cFileManager::readPatternFile(const char* filePath, Sequencer::strPattern* destPattern)
 {
     memset(destPattern, 0, sizeof(Sequencer::strPattern));
@@ -297,21 +338,27 @@ bool cFileManager::readPatternFile(const char* filePath, Sequencer::strPattern* 
         return false;
     }
 
-    fileSystem->readFile(destPattern, sizeof(Sequencer::strPattern), file);
+    size_t fileSize = fileSystem->getFileSize(file);
+    if (fileSize > sizeof(Sequencer::strPattern))
+    {
+        fileSystem->closeFile(file);
+        report("load pattern file - invalid size ", filePath);
+        return false;
+    }
+
+    size_t bytesRead = fileSystem->readFile(destPattern, fileSize, file);
     fileSystem->closeFile(file);
 
-    /*
-        uint32_t checkCRC = 0;
-        checkCRC = crcCalculator->calculate32bitCrc((uint8_t*)destPattern,
-                                                    sizeof(Sequencer::strPattern) -
-       sizeof(uint32_t));
+    if (bytesRead != fileSize)
+    {
+        report("load pattern file - read error ", filePath);
+        return false;
+    }
 
-        if (false)
-        {
-            report("load pattern file - CRC error ", filePath);
-            return false;
-        }
-    */
+    if (!validatePatternFileData(filePath, destPattern, fileSize))
+    {
+        return false;
+    }
 
     checkVersionAndTranslate(destPattern);
 
