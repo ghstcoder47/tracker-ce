@@ -52,6 +52,10 @@ bool SdStream::startStream(const char* path,
     }
 
     fillBuffer(true);
+    if (!isFileOpened)
+    {
+        return false;
+    }
     switchBuffer();
 
     isActive = true;
@@ -290,11 +294,13 @@ void SdStream::fillBuffer(bool align)
     }
 
     int bufferIdx = getFirstEmptyBufferIdx();
+    bool readFailed = false;
 
     if (isSourceInterleaved)
     {
         writeBuffers[bufferIdx].storedDataSize = fileSystem->readFile(
           writeBuffers[bufferIdx].address, bufferSize - filePos % bufferSize, wavfile);
+        readFailed = writeBuffers[bufferIdx].storedDataSize < 0;
     }
     else
     {
@@ -305,23 +311,44 @@ void SdStream::fillBuffer(bool align)
         fileSystem->seekFileCur(dataLength * sizeof(int16_t), wavfile);
 
         // right buffer is first to detect the file end
-        size_t rightChannelStoredData = fileSystem->readFile(rightAddress, halfBufferSize, wavfile);
+        int32_t rightChannelStoredData =
+          fileSystem->readFile(rightAddress, halfBufferSize, wavfile);
+        readFailed = rightChannelStoredData < 0;
 
-        fileSystem->seekFileCur(-(dataLength * sizeof(int16_t) + rightChannelStoredData), wavfile);
+        if (!readFailed && rightChannelStoredData > 0)
+        {
+            fileSystem->seekFileCur(
+              -(dataLength * sizeof(int16_t) + rightChannelStoredData), wavfile);
 
-        // read from left channel the result bytes from right channel (end file detection) to avoid
-        // exceeding left channel area
-        writeBuffers[bufferIdx].storedDataSize =
-          rightChannelStoredData +
-          fileSystem->readFile(leftAddress, rightChannelStoredData, wavfile);
+            // read from left channel the result bytes from right channel (end file detection) to
+            // avoid exceeding left channel area
+            int32_t leftChannelStoredData =
+              fileSystem->readFile(leftAddress, rightChannelStoredData, wavfile);
+            readFailed = leftChannelStoredData < 0;
 
-        assert((uint32_t)writeBuffers[bufferIdx].storedDataSize == rightChannelStoredData * 2);
+            if (!readFailed)
+            {
+                writeBuffers[bufferIdx].storedDataSize =
+                  rightChannelStoredData + leftChannelStoredData;
 
-        makeBufferInterleaved(writeBuffers[bufferIdx].address,
-                              writeBuffers[bufferIdx].storedDataSize / 4);
+                assert(writeBuffers[bufferIdx].storedDataSize == rightChannelStoredData * 2);
+
+                makeBufferInterleaved(writeBuffers[bufferIdx].address,
+                                      writeBuffers[bufferIdx].storedDataSize / 4);
+            }
+        }
+        else
+        {
+            writeBuffers[bufferIdx].storedDataSize = 0;
+        }
     }
 
-    if (writeBuffers[bufferIdx].storedDataSize < bufferSize && !align)
+    if (readFailed)
+    {
+        writeBuffers[bufferIdx].storedDataSize = 0;
+    }
+
+    if (readFailed || (writeBuffers[bufferIdx].storedDataSize < bufferSize && !align))
     {
         fileSystem->closeFile(wavfile, false);
         isFileOpened = false;

@@ -267,10 +267,10 @@ bool cFileManager::writePatternFile(const char* filePath, Sequencer::strPattern*
 
     if (isOpen)
     {
-        size_t written;
+        int32_t written;
         written = fileSystem->writeFile(sourcePattern, sizeof(Sequencer::strPattern), file);
 
-        if (written == sizeof(Sequencer::strPattern))
+        if (written == static_cast<int32_t>(sizeof(Sequencer::strPattern)))
         {
             fileSystem->closeFile(file);
             report("write pattern file - success ", filePath);

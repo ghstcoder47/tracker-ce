@@ -145,7 +145,7 @@ uint8_t cFileTransfer::loadFileToMemory(const char* file,
 
     if (transferStep == 2)
     {
-        uint32_t result = fileSystem->readFile(memory + sourceMemComplited, memStep, transferFile);
+        int32_t result = fileSystem->readFile(memory + sourceMemComplited, memStep, transferFile);
 
         if (result >= 0)
         {
@@ -235,7 +235,7 @@ uint8_t cFileTransfer::loadSampleToMemory(const char* file,
 
     if (transferStep == 1)
     {
-        uint32_t result = fileSystem->readFile(externalRamFileManagerBuffL, memStep, transferFile);
+        int32_t result = fileSystem->readFile(externalRamFileManagerBuffL, memStep, transferFile);
 
         if (result >= 0)
         {
@@ -1143,7 +1143,7 @@ uint8_t cFileTransfer::copySampleToInstrumentFile(const char* src,
             memStep = sourceMemTotal - sourceMemComplited;
         }
 
-        uint32_t bytesReadFromSource =
+        int32_t bytesReadFromSource =
           fileSystem->readFile(externalRamFileManagerSrcBuff, memStep, transferFile);
 
         if (bytesReadFromSource == 0) // koniec pliku - koncz kopiowanie
